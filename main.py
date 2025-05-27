@@ -7,27 +7,48 @@ import math
 import random
 
 # Individual Constants
-NUM_ITEMS = 32
+NUM_ITEMS = 16
 MAX_WEIGHT = 64
 MAX_VALUE = 16
 MUTATION_NUM = 1
-WEIGHT_THRESH = 50
+WEIGHT_THRESH = 200
 
 # Popuation Constants
-POP_SIZE = 32
-MAX_PARENTS = 8
+POP_SIZE = 16
+MAX_PARENTS = 4
 TOURN_SIZE = 3
+
+# Simulation Constants
+NUM_TRIALS = 10
+NUM_GENERATIONS = 100
 
 ITEMS = [
     (random.randint(1, MAX_VALUE),
-     random.randint(1, MAX_WEIGHT))
+     random.randint(1, MAX_WEIGHT // 2))
     for _ in range(NUM_ITEMS)
 ]
 
-print('\nItems:\n', ITEMS)
-
 def main():
-    pass
+
+    total_item_weight = sum(item[1] + MAX_WEIGHT for item in ITEMS)
+
+    print('\nKnapsack with', NUM_ITEMS, 'items and a maximum weight of', MAX_WEIGHT, 'and items totaling a weight of', total_item_weight, 'and an average weight of', total_item_weight // NUM_ITEMS, '\n')
+
+    for trial in range(1):
+
+        pop = population()
+
+        for gen in range(10):
+            print('Generation:', gen, 'size:', len(pop))
+            print(pop)
+
+            for _ in range(random.randint(1, 4)):
+                child = pop.select().copy()
+                child.mutate()
+                print('Adding', child)
+            
+            pop.members.append(child)
+            pop.calc()
 
 class individual:
     
@@ -40,22 +61,20 @@ class individual:
         self.calc()
 
     def mutate(self):
-        
+        """
+        Mutates the individual by flipping a random bit in the genome.
+        """
         for i in range(MUTATION_NUM):
             
             index = random.randrange(NUM_ITEMS)
             self.genome[index] = 1 - self.genome[index]
-            self.calc()
             
-            # If the weight difference is too high, revert the mutation
-            # and try again.
-            if self.weight_diff > WEIGHT_THRESH:
-                self.genome[index] = 1 - self.genome[index]
-                self.calc()
-                i -= 1
+        self.calc()
 
     def calc(self):
-
+        """
+        Calculates the fitness, value, and weight difference of the individual.
+        """
         self.value = 0
         self.weight_diff = 0
         
@@ -66,16 +85,16 @@ class individual:
         
         self.weight_diff = MAX_WEIGHT - self.weight_diff
 
-        if self.weight_diff > 0:
-            self.fitness = 0
-        else:
-            self.fitness = self.value
+        self.fitness = self.value
 
     def copy(self):
-        dst = individual()
-        dst.genome = self.genome.copy()
-        dst.calc()
-        return dst
+        """
+        Returns a copy of the individual.
+        """
+        clone = individual()
+        clone.genome = self.genome.copy()
+        clone.calc()
+        return clone
 
     def __str__(self):
         return f'{self.value} {self.weight_diff} {self.fitness} {self.genome}'
@@ -94,27 +113,23 @@ class population:
         self.avg_fit = 0
         self.best_fit = -9999
         self.best_ind = -1
+        self.size = POP_SIZE
 
         self.calc()
     
     def reproduce(self):
         for _ in range(random.randint(1, MAX_PARENTS)):
-            child = self.select()
+            parent = self.select()
+            child = parent.copy()
             child.mutate()
+            print('Child', child)
             self.members.append(child)
-        
+
         self.calc()
 
     def select(self):
         """
-        Selects a random individual from the population via a tournament.
-        """
-
-        return self.members[self.tourn()].copy()
-
-    def tourn(self):
-        """
-        Tournament selection of k individuals.
+        Tournament selection of k individuals. Returns the index of the best individual.
         """
 
         best = -1
@@ -126,7 +141,7 @@ class population:
                 best_fit = self.members[ind].fitness
                 best = ind
 
-        return best
+        return self.members[best].copy()
 
     def calc(self):
         """
@@ -137,29 +152,27 @@ class population:
         self.best_fit = -9999
         self.best_ind = -1
 
-        for i in range(POP_SIZE):
+        for i in range(len(self.members)):
             self.avg_fit += self.members[i].fitness
             if self.members[i].fitness > self.best_fit:
                 self.best_fit = self.members[i].fitness
                 self.best_ind = i
 
-        self.avg_fit //= POP_SIZE
+        self.avg_fit //= len(self.members)
+
+    def display(self):
+        """
+        Displays the population.
+        """
+        print(self)
+        for member in self.members:
+            print(member)
+
+    def __len__(self):
+        return len(self.members)
 
     def __str__(self):
         return f'Avg: {self.avg_fit} Best: {self.best_fit} Best Ind: {self.best_ind}'
-    
-print('\nTest Individual:')
-test_ind = individual()
-print(test_ind)
-print('\nTest Population:')
-test_pop = population()
-print(test_pop)
-print()
-print('Best tourn:', str(test_pop.members[test_pop.tourn()]))
-print()
-test_pop.reproduce()
-print('After Reproduce:')
-print(test_pop)
     
 if __name__ == "__main__":
     main()
