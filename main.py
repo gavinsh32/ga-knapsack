@@ -1,6 +1,6 @@
 # main.py
 # Gavin Haynes
-# CS 4731 Evolutionary Computation
+# CS4731 Evolutionary Computation
 # Project 1 - GA Knapsack 
 
 import random
@@ -9,17 +9,18 @@ import matplotlib.pyplot as plt
 # Item Constants
 NUM_ITEMS = 20
 MAX_WEIGHT = 10000
+INITIAL_ITEM_THRESH = 1.5
 
 # Individual Constants
-MUTATION_NUM = 1
+MUTATION_NUM = NUM_ITEMS // 20
+
+# Popuation Constants
+POP_SIZE = 20
+MAX_PARENTS = 10
+TOURN_SIZE = 3
 
 # Scoring Constants
 SCORE_SCALE = 1.3
-
-# Popuation Constants
-INITIAL_POP_SIZE = 16
-MAX_PARENTS = 4
-TOURN_SIZE = 5
 
 # Simulation Constants
 NUM_TRIALS = 3
@@ -32,18 +33,56 @@ for i in range(NUM_ITEMS):
     value = weight + 1000 + random.randint(0, 100)
     items.append((value, weight))
 
+# Simulation Results
+all_best_fit = [0.0 for _ in range(NUM_GENERATIONS)]
+all_avg_fit = [0.0 for _ in range(NUM_GENERATIONS)]
+all_best_value = [0.0 for _ in range(NUM_GENERATIONS)]
+
+# Simulation Loop
+def main():
+    for trial in range(NUM_TRIALS):
+        pop = Population()
+
+        for gen in range(NUM_GENERATIONS):
+            print(f'Gen: {gen}, Avg Fit: {pop.avg_fit}, Best: {pop.members[pop.best_ind].fitness}, ${pop.members[pop.best_ind].value}, avg weight: {pop.avg_weight} oz')
+            #pop.display()
+            pop.generation()
+            all_best_fit[gen] += pop.best_fit
+            all_avg_fit[gen] += pop.avg_fit
+            all_best_value[gen] = pop.members[pop.best_ind].value
+
+    # Average the results over all trials
+    for i in range(NUM_GENERATIONS):
+        all_best_fit[i] /= NUM_TRIALS
+        all_avg_fit[i] /= NUM_TRIALS
+
+    # Plot Results
+    plt.figure(figsize=(8, 6))
+    plt.plot(all_best_fit, label='Best Fit')
+    plt.plot(all_avg_fit, label='Average Fit')
+    plt.xlabel('Generation')
+    plt.ylabel('Value / Fitness ($)')
+    plt.title(f'Value Over Generations')
+    plt.legend()
+    plt.savefig(f'result.png')
+
 class Individual:
     """
     Represents an individual solution to the knapsack problem.
     """
     def __init__(self):
-        self.genome = [random.randint(0, 1) for _ in range(NUM_ITEMS)]
         self.fitness = 0
         self.value = 0
         self.weight = 0
-        self.update()
+        self.genome = [0 for _ in range(NUM_ITEMS)]
+        
+        for _ in range(NUM_ITEMS):
+            if abs(self.weight - MAX_WEIGHT) < 5000:
+                break
+            self.genome[random.randrange(NUM_ITEMS)] = 1
+            self.update()
 
-    def mutate(self, num_mutations=1):
+    def mutate(self):
         """
         Mutates the individual by flipping a random bit in the genome.
         """
@@ -55,7 +94,7 @@ class Individual:
 
     def update(self):
         """
-        Calculates the fitness, value, and weight difference of the individual.
+        Update the fitness, value, and weight difference of the individual.
         """
         self.value = 0
         self.weight = 0
@@ -66,10 +105,12 @@ class Individual:
                 self.value += items[i][0]
                 self.weight += items[i][1]
         
+        # Weight does not exceed
         if self.weight <= MAX_WEIGHT:
             self.fitness = self.value
+        # Weight exceeds, apply penalty
         else:
-            self.fitness = int(self.value - (self.weight - MAX_WEIGHT) * SCORE_SCALE)
+            self.fitness = int(self.value - (self.weight - MAX_WEIGHT) * 1.5)
 
     def copy(self) -> 'Individual':
         """
@@ -81,7 +122,7 @@ class Individual:
         return clone
 
     def __str__(self):
-        return f'${self.value}, {self.weight}oz, {self.fitness} fit'
+        return f'${self.value}, {self.weight}oz, {self.fitness} fit {self.genome}'
     
     def __repr__(self):
         return str(self.genome)
@@ -91,38 +132,51 @@ class Population:
         """
         Initializes the population with a list of individuals.
         """
-        self.members = [Individual() for _ in range(INITIAL_POP_SIZE)]
+        self.members = [Individual() for _ in range(POP_SIZE)]
         self.avg_fit = 0
         self.best_fit = -9999
         self.best_ind = -1
         self.avg_weight = 0
         self.update()
 
-    def reproduce(self, max_parents=MAX_PARENTS) -> None:
+    def generation(self, max_parents=MAX_PARENTS) -> None:
         """
-        Perform reproduction by tournament selection and replication with mutation.
+        Perform reproduction via tournament selectiona and one-point crossover.
         """
+        # Keep the best individual
         elite = self.members[self.best_ind].copy()
-        elite.mutate()
-        self.members.append(elite)
+        new_members = [elite]
 
         for _ in range(random.randint(1, max_parents)):
-            parent = self.select()
-            child = parent.copy()
-            child.mutate()
-            self.members.append(child)
+            # Select two parents
+            a = self.select()
+            b = self.select()
+            
+            # Perform one-point crossover
+            p = random.randrange(NUM_ITEMS)
+            c = Individual()
+            c.genome = a.genome[:p] + b.genome[p:]
+            c.mutate()
+            c.update()
 
+            # Replace random member in the population with the new child
+            new_members.append(c)
+
+        while len(new_members) < POP_SIZE:
+            new_members.append(Individual())
+
+        self.members = new_members[:POP_SIZE]
         self.update()
 
     def select(self) -> Individual:
         """
-        Tournament selection of k individuals. Returns the index of the best individual.
+        Tournament selection of k individuals. Returns a copy.
         """
         best = 0
         best_fit = self.members[best].fitness
 
         for i in range(TOURN_SIZE):
-            ind = random.randint(0, INITIAL_POP_SIZE - 1)
+            ind = random.randint(0, POP_SIZE - 1)
             if self.members[ind].fitness > best_fit:
                 best_fit = self.members[ind].fitness
                 best = ind
@@ -149,35 +203,6 @@ class Population:
 
     def __len__(self):
         return len(self.members)
-
-all_best_fit = [0 for _ in range(NUM_GENERATIONS)]
-all_avg_fit = [0 for _ in range(NUM_GENERATIONS)]
-all_best_value = [0 for _ in range(NUM_GENERATIONS)]
-
-# Simulation Loop
-for trial in range(NUM_TRIALS):
-    pop = Population()
     
-    for gen in range(NUM_GENERATIONS):
-        print(f'Gen: {gen}, Avg Fit: {pop.avg_fit}, Best: {pop.members[pop.best_ind].fitness}, ${pop.members[pop.best_ind].value}')
-        #pop.display()
-        pop.reproduce()
-        all_best_fit[gen] += pop.best_fit
-        all_avg_fit[gen] += pop.avg_fit
-        all_best_value[gen] = pop.members[pop.best_ind].value
-
-# Average the results over all trials
-for i in range(NUM_GENERATIONS):
-    all_best_fit[i] /= NUM_TRIALS
-    all_avg_fit[i] /= NUM_TRIALS
-
-# Plot Results
-plt.figure(figsize=(8, 6))
-plt.plot(all_best_fit, label='Best Fit')
-plt.plot(all_avg_fit, label='Average Fit')
-plt.xlabel('Generation')
-plt.ylabel('Value / Fitness ($)')
-plt.title(f'Value Over Generations')
-plt.legend()
-plt.savefig(f'./results/result-{NUM_ITEMS}-items.png')
-plt.show()
+if __name__ == "__main__":
+    main()
