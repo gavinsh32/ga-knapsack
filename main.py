@@ -12,10 +12,10 @@ MAX_WEIGHT = 10000
 INITIAL_ITEM_THRESH = 1.5
 
 # Individual Constants
-MUTATION_NUM = NUM_ITEMS // 20
+MUTATION_NUM = 2
 
 # Popuation Constants
-POP_SIZE = 20
+POP_SIZE = 100
 MAX_PARENTS = 10
 TOURN_SIZE = 3
 
@@ -23,8 +23,8 @@ TOURN_SIZE = 3
 SCORE_SCALE = 1.3
 
 # Simulation Constants
-NUM_TRIALS = 3
-NUM_GENERATIONS = 50
+NUM_TRIALS = 10
+NUM_GENERATIONS = 300
 
 # Item Generation
 items = []
@@ -44,7 +44,7 @@ def main():
         pop = Population()
 
         for gen in range(NUM_GENERATIONS):
-            print(f'Gen: {gen}, Avg Fit: {pop.avg_fit}, Best: {pop.members[pop.best_ind].fitness}, ${pop.members[pop.best_ind].value}, avg weight: {pop.avg_weight} oz')
+            #print(f'Gen: {gen}, Avg Fit: {pop.avg_fit}, Best: {pop.members[pop.best_ind].fitness}, ${pop.members[pop.best_ind].value}, avg weight: {pop.avg_weight} oz')
             #pop.display()
             pop.generation()
             all_best_fit[gen] += pop.best_fit
@@ -58,13 +58,13 @@ def main():
 
     # Plot Results
     plt.figure(figsize=(8, 6))
-    plt.plot(all_best_fit, label='Best Fit')
-    plt.plot(all_avg_fit, label='Average Fit')
+    plt.plot(all_best_fit, label='Best')
+    plt.plot(all_avg_fit, label='Average')
     plt.xlabel('Generation')
-    plt.ylabel('Value / Fitness ($)')
-    plt.title(f'Value Over Generations')
+    plt.ylabel('Fitness ($)')
+    plt.title(f'Fitness Over Generations, {NUM_ITEMS} Items')
     plt.legend()
-    plt.savefig(f'result.png')
+    plt.savefig(f'{NUM_ITEMS}.png')
 
 class Individual:
     """
@@ -118,7 +118,9 @@ class Individual:
         """
         clone = Individual()
         clone.genome = self.genome[:]
-        clone.update()
+        clone.fitness = self.fitness
+        clone.value = self.value
+        clone.weight = self.weight
         return clone
 
     def __str__(self):
@@ -143,9 +145,6 @@ class Population:
         """
         Perform reproduction via tournament selectiona and one-point crossover.
         """
-        # Keep the best individual
-        elite = self.members[self.best_ind].copy()
-        new_members = [elite]
 
         for _ in range(random.randint(1, max_parents)):
             # Select two parents
@@ -158,14 +157,8 @@ class Population:
             c.genome = a.genome[:p] + b.genome[p:]
             c.mutate()
             c.update()
+            self.members[self.select_lowest()] = c
 
-            # Replace random member in the population with the new child
-            new_members.append(c)
-
-        while len(new_members) < POP_SIZE:
-            new_members.append(Individual())
-
-        self.members = new_members[:POP_SIZE]
         self.update()
 
     def select(self) -> Individual:
@@ -182,6 +175,19 @@ class Population:
                 best = ind
 
         return self.members[best].copy()
+    
+    def select_lowest(self) -> int:
+        worst = -1
+        worst_fit = 9999999999
+
+        for i in range(TOURN_SIZE):
+            op = random.randrange(POP_SIZE)
+            op_fit = self.members[op].fitness
+            if op_fit < worst_fit:
+                worst = op
+                worst_fit = op_fit
+        
+        return worst
 
     def update(self) -> None:
         """
